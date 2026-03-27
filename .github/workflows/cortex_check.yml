@@ -1,0 +1,44 @@
+name: Conexao Cortex Cloud
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch: # Permite rodar o botão "Run workflow" manualmente
+
+jobs:
+  test-connection:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout do Código
+        uses: actions/checkout@v4
+
+      - name: Chamada API Cortex
+        shell: pwsh
+        env:
+          # É AQUI que a mágica acontece para evitar o erro de 'comando não encontrado'
+          CORTEX_ID: ${{ secrets.CORTEX_API_KEY_ID }}
+          CORTEX_KEY: ${{ secrets.CORTEX_API_KEY }}
+          CORTEX_URL: ${{ secrets.CORTEX_FQDN }}
+        run: |
+          # No PowerShell do GitHub Actions, usamos $env: para ler os segredos
+          $headers = @{
+            "x-xdr-auth-id" = "$env:CORTEX_ID"
+            "Authorization"  = "$env:CORTEX_KEY"
+            "Content-Type"   = "application/json"
+          }
+
+          $url = "https://$env:CORTEX_URL/public_api/v1/endpoints/get_endpoints/"
+          
+          # Corpo vazio para listar endpoints (padrão da API do Cortex)
+          $body = @{ request_data = @{} } | ConvertTo-Json
+
+          Write-Host "Iniciando chamada para o Cortex em $env:CORTEX_URL..."
+
+          try {
+              $response = Invoke-RestMethod -Method Post -Uri $url -Headers $headers -Body $body
+              Write-Host "Sucesso! Total de endpoints encontrados: $($response.reply.count)"
+          } catch {
+              Write-Error "Erro na API: $_"
+              exit 1
+          }
